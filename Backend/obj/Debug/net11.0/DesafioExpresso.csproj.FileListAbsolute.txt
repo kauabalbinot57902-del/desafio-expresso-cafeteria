@@ -74,3 +74,4 @@
 /home/Moon/Área de trabalho/DesafioExpresso/Backend/obj/Debug/net11.0/DesafioExpresso.pdb
 /home/Moon/Área de trabalho/DesafioExpresso/Backend/obj/Debug/net11.0/DesafioExpresso.genruntimeconfig.cache
 /home/Moon/Área de trabalho/DesafioExpresso/Backend/obj/Debug/net11.0/ref/DesafioExpresso.dll
+/home/Moon/Área de trabalho/DesafioExpresso/Backend/obj/Debug/net11.0/DesafioExpresso.sourcelink.json
