@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Desafio Expresso - Cafeteria</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-stone-100 text-stone-800 min-h-screen font-sans">
+
+  <!-- Barra de Navegação -->
+  <header class="bg-amber-900 text-white shadow">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
+      <h1 class="text-xl font-bold tracking-tight"☕︎ Cafeteria Expresso ☕︎</h1>
+      <nav class="flex gap-2">
+        <button onclick="mudarAba('totem')" id="btn-totem" class="px-3 py-1.5 rounded bg-amber-700 font-medium text-sm">1. Totem / Balcão</button>
+        <button onclick="mudarAba('barista')" id="btn-barista" class="px-3 py-1.5 rounded hover:bg-amber-800 font-medium text-sm">2. Painel Barista</button>
+        <button onclick="mudarAba('tv')" id="btn-tv" class="px-3 py-1.5 rounded hover:bg-amber-800 font-medium text-sm">3. Tela TV (Prontos)</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto p-4 mt-4">
+    <!-- Alerta de Feedback -->
+    <div id="alerta" class="hidden mb-4 p-3 rounded border text-sm font-medium"></div>
+
+    <!-- TELA 1: TOTEM / BALCÃO -->
+    <section id="aba-totem" class="grid md:grid-cols-3 gap-6">
+      <div class="md:col-span-2">
+        <h2 class="text-lg font-bold mb-3">Cardápio</h2>
+        <div id="lista-produtos" class="grid sm:grid-cols-2 gap-3">
+          <p class="text-stone-500 text-sm">Carregando cardápio...</p>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-lg shadow border border-stone-200 h-fit">
+        <h2 class="text-lg font-bold mb-3">Novo Pedido</h2>
+        
+        <label class="block text-xs font-semibold uppercase text-stone-500 mb-1">Nome do Cliente *</label>
+        <input id="cliente-nome" type="text" placeholder="Ex: Kauã" class="w-full border rounded px-3 py-2 text-sm mb-3" />
+
+        <label class="block text-xs font-semibold uppercase text-stone-500 mb-1">CEP para Entrega (Opcional - ViaCEP)</label>
+        <input id="cliente-cep" type="text" placeholder="Ex: 85884-000" class="w-full border rounded px-3 py-2 text-sm mb-4" />
+
+        <div class="border-t pt-3 mb-3">
+          <h3 class="text-xs font-semibold uppercase text-stone-500 mb-2">Itens Selecionados</h3>
+          <div id="carrinho-itens" class="space-y-2 text-sm text-stone-600">
+            <p class="italic text-stone-400">Nenhum item adicionado.</p>
+          </div>
+        </div>
+
+        <div class="border-t pt-3 flex justify-between items-center font-bold text-base mb-4">
+          <span>Total Estimado:</span>
+          <span id="carrinho-total">R$ 0,00</span>
+        </div>
+
+        <button id="btn-finalizar" onclick="enviarPedido()" class="w-full bg-amber-800 hover:bg-amber-900 text-white font-semibold py-2.5 rounded transition">
+          Finalizar Pedido
+        </button>
+      </div>
+    </section>
+
+    <!-- TELA 2: PAINEL DO BARISTA -->
+    <section id="aba-barista" class="hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold">Fila de Produção (Barista)</h2>
+        <button onclick="carregarPedidos()" class="text-xs bg-stone-200 hover:bg-stone-300 px-3 py-1.5 rounded font-medium">Atualizar Lista</button>
+      </div>
+      <div id="lista-barista" class="grid md:grid-cols-3 gap-4"></div>
+    </section>
+
+    <!-- TELA 3: PAINEL TV (PEDIDOS PRONTOS) -->
+    <section id="aba-tv" class="hidden">
+      <div class="bg-stone-900 text-white rounded-xl p-6 shadow-lg">
+        <h2 class="text-2xl font-bold text-amber-400 mb-6 text-center uppercase tracking-wider">Pedidos Prontos para Retirada</h2>
+        <div id="lista-tv" class="grid sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API_URL = "http://localhost:5000/api";
+    let produtos = [];
+    let carrinho = [];
+
+    function mostrarAlerta(msg, erro = false) {
+      const el = document.getElementById("alerta");
+      el.textContent = msg;
+      el.className = `mb-4 p-3 rounded border text-sm font-medium ${erro ? 'bg-red-50 border-red-300 text-red-800' : 'bg-emerald-50 border-emerald-300 text-emerald-800'}`;
+      el.classList.remove("hidden");
+      setTimeout(() => el.classList.add("hidden"), 5000);
+    }
+
+    function mudarAba(aba) {
+      ["totem", "barista", "tv"].forEach(id => {
+        document.getElementById(`aba-${id}`).classList.add("hidden");
+        document.getElementById(`btn-${id}`).classList.remove("bg-amber-700");
+      });
+      document.getElementById(`aba-${aba}`).classList.remove("hidden");
+      document.getElementById(`btn-${aba}`).classList.add("bg-amber-700");
+
+      if (aba === "totem") carregarProdutos();
+      else carregarPedidos();
+    }
+
+    async function carregarProdutos() {
+      const container = document.getElementById("lista-produtos");
+      try {
+        const res = await fetch(`${API_URL}/produtos`);
+        produtos = await res.json();
+        
+        if (!produtos.length) {
+          container.innerHTML = `<p class="text-stone-500 text-sm">Nenhum produto cadastrado.</p>`;
+          return;
+        }
+
+        container.innerHTML = produtos.map(p => `
+          <div class="bg-white p-4 rounded-lg border ${p.disponivel ? 'border-stone-200' : 'border-red-200 opacity-60'} shadow-sm flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start">
+                <span class="text-xs font-semibold uppercase tracking-wider text-amber-800">${p.categoria} • ${p.tamanho}</span>
+                ${!p.disponivel ? '<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">Indisponível</span>' : ''}
+              </div>
+              <h3 class="font-bold text-base mt-1">${p.nome}</h3>
+              <p class="text-stone-700 font-semibold mt-1">R$ ${p.preco.toFixed(2).replace('.', ',')}</p>
+            </div>
+            <button onclick="adicionarAoCarrinho(${p.id})" ${!p.disponivel ? 'disabled' : ''} 
+              class="mt-3 w-full py-1.5 rounded text-sm font-medium ${p.disponivel ? 'bg-stone-800 hover:bg-stone-900 text-white' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}">
+              + Adicionar
+            </button>
+          </div>
+        `).join("");
+      } catch {
+        container.innerHTML = `<p class="text-red-600 text-sm">Erro ao conectar com a API. Verifique se o backend está rodando em ${API_URL}.</p>`;
+      }
+    }
+
+    function adicionarAoCarrinho(produtoId) {
+      const prod = produtos.find(p => p.id === produtoId);
+      if (!prod) return;
+
+      const obs = prompt(`Alguma observação para "${prod.nome}"? (Ex: sem açúcar) - Deixe em branco se não houver:`) || "";
+      carrinho.push({ produtoId: prod.id, nome: prod.nome, preco: prod.preco, quantidade: 1, observacao: obs });
+      renderizarCarrinho();
+    }
+
+    function removerDoCarrinho(index) {
+      carrinho.splice(index, 1);
+      renderizarCarrinho();
+    }
+
+    function renderizarCarrinho() {
+      const el = document.getElementById("carrinho-itens");
+      const totalEl = document.getElementById("carrinho-total");
+
+      if (!carrinho.length) {
+        el.innerHTML = `<p class="italic text-stone-400">Nenhum item adicionado.</p>`;
+        totalEl.textContent = "R$ 0,00";
+        return;
+      }
+
+      let total = 0;
+      el.innerHTML = carrinho.map((item, idx) => {
+        total += item.preco * item.quantidade;
+        return `
+          <div class="flex justify-between items-start bg-stone-50 p-2 rounded border">
+            <div>
+              <p class="font-medium text-stone-800">${item.quantidade}x ${item.nome}</p>
+              ${item.observacao ? `<p class="text-xs text-stone-500">Obs: ${item.observacao}</p>` : ''}
+            </div>
+            <button onclick="removerDoCarrinho(${idx})" class="text-red-500 hover:text-red-700 text-xs font-bold ml-2">✕</button>
+          </div>
+        `;
+      }).join("");
+
+      totalEl.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+    }
+
+    async function enviarPedido() {
+      const btn = document.getElementById("btn-finalizar");
+      const cliente = document.getElementById("cliente-nome").value;
+      const cep = document.getElementById("cliente-cep").value;
+
+      btn.disabled = true;
+      btn.textContent = "Enviando...";
+
+      try {
+        const res = await fetch(`${API_URL}/pedidos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cliente,
+            cep: cep || null,
+            itens: carrinho.map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade, observacao: i.observacao }))
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          mostrarAlerta(typeof data === "string" ? data : "Erro ao registrar pedido.", true);
+        } else {
+          mostrarAlerta(`Pedido #${data.id} registrado com sucesso! ${data.enderecoEntrega ? 'Entrega: ' + data.enderecoEntrega : ''}`);
+          carrinho = [];
+          document.getElementById("cliente-nome").value = "";
+          document.getElementById("cliente-cep").value = "";
+          renderizarCarrinho();
+        }
+      } catch {
+        mostrarAlerta("Falha de comunicação com a API.", true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Finalizar Pedido";
+      }
+    }
+
+    async function carregarPedidos() {
+      try {
+        const res = await fetch(`${API_URL}/pedidos`);
+        const pedidos = await res.json();
+
+        const ativos = pedidos.filter(p => ["Recebido", "Preparando", "Pronto"].includes(p.situacao));
+        const baristaEl = document.getElementById("lista-barista");
+        
+        baristaEl.innerHTML = ativos.length ? ativos.map(p => `
+          <div class="bg-white p-4 rounded-lg border shadow-sm flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-base">#${p.id} - ${p.cliente}</span>
+                <span class="text-xs px-2 py-0.5 rounded font-semibold bg-amber-100 text-amber-900">${p.situacao}</span>
+              </div>
+              ${p.enderecoEntrega ? `<p class="text-xs text-blue-700 bg-blue-50 p-1.5 rounded mb-2">📍 ${p.enderecoEntrega}</p>` : ''}
+              <ul class="text-sm space-y-1 border-t pt-2 mb-3">
+                ${p.itens.map(i => `<li>• <b>${i.quantidade}x</b> ${i.nomeProduto} ${i.observacao ? `<span class="text-stone-500 text-xs">(${i.observacao})</span>` : ''}</li>`).join("")}
+              </ul>
+            </div>
+            <div class="flex gap-2 pt-2 border-t">
+              <button onclick="acaoPedido(${p.id}, 'avancar')" class="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-2 rounded">
+                Avançar Status →
+              </button>
+              ${p.situacao === 'Recebido' ? `
+                <button onclick="acaoPedido(${p.id}, 'cancelar')" class="bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold px-3 py-2 rounded">
+                  Cancelar
+                </button>` : ''}
+            </div>
+          </div>
+        `).join("") : `<p class="text-stone-500 text-sm col-span-3">Nenhum pedido em andamento no momento.</p>`;
+
+        const prontos = pedidos.filter(p => p.situacao === "Pronto");
+        const tvEl = document.getElementById("lista-tv");
+        tvEl.innerHTML = prontos.length ? prontos.map(p => `
+          <div class="bg-stone-800 border border-amber-500/40 rounded-lg p-5 text-center">
+            <span class="text-amber-400 text-sm font-bold uppercase">Pedido #${p.id}</span>
+            <p class="text-2xl font-bold mt-1">${p.cliente}</p>
+          </div>
+        `).join("") : `<p class="text-stone-400 text-center col-span-3">Aguardando pedidos ficarem prontos...</p>`;
+
+      } catch {
+        mostrarAlerta("Erro ao carregar pedidos.", true);
+      }
+    }
+
+    async function acaoPedido(id, acao) {
+      const res = await fetch(`${API_URL}/pedidos/${id}/${acao}`, { method: "PATCH" });
+      if (!res.ok) {
+        const msg = await res.json();
+        mostrarAlerta(msg, true);
+      } else {
+        carregarPedidos();
+      }
+    }
+
+    carregarProdutos();
+  </script>
+</body>
+</html>
